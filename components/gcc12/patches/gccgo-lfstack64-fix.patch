@@ -1,0 +1,53 @@
+diff --git a/libgo/go/runtime/lfstack_64bit.go b/libgo/go/runtime/lfstack_64bit.go
+index 8e088309..e8894d0d 100644
+--- a/libgo/go/runtime/lfstack_64bit.go
++++ b/libgo/go/runtime/lfstack_64bit.go
+@@ -35,6 +35,9 @@ const (
+ 	sparcLinuxAddrBits = 52
+ 	sparcLinuxCntBits  = 64 - sparcLinuxAddrBits + 3
+ 
++	sparcSolarisAddrBits = 53
++	sparcSolarisCntBits = 64 - sparcSolarisAddrBits + 3
++
+ 	// On IA64, the virtual address space is devided into 8 regions, with
+ 	// 52 address bits each (with 64k page size).
+ 	ia64AddrBits = 55
+@@ -50,8 +53,13 @@ const (
+ )
+ 
+ func lfstackPack(node *lfnode, cnt uintptr) uint64 {
+-	if GOARCH == "sparc64" && GOOS == "linux" {
+-		return uint64(uintptr(unsafe.Pointer(node)))<<(64-sparcLinuxAddrBits) | uint64(cnt&(1<<sparcLinuxCntBits-1))
++	if GOARCH == "sparc64" {
++		if GOOS == "linux" {
++			return uint64(uintptr(unsafe.Pointer(node)))<<(64-sparcLinuxAddrBits) | uint64(cnt&(1<<sparcLinuxCntBits-1))
++		}
++		if GOOS == "solaris" {
++			return uint64(uintptr(unsafe.Pointer(node)))<<(64-sparcSolarisAddrBits) | uint64(cnt&(1<<sparcSolarisCntBits-1))
++		}
+ 	}
+ 	if GOARCH == "ia64" {
+ 		// Top three bits are the region number
+@@ -65,13 +73,18 @@ func lfstackPack(node *lfnode, cnt uintptr) uint64 {
+ }
+ 
+ func lfstackUnpack(val uint64) *lfnode {
+-	if GOARCH == "amd64" || GOOS == "solaris" {
+-		// amd64 or Solaris systems can place the stack above the VA hole, so we need to sign extend
++	if GOARCH == "amd64" {
++		// amd64 systems can place the stack above the VA hole, so we need to sign extend
+ 		// val before unpacking.
+ 		return (*lfnode)(unsafe.Pointer(uintptr(int64(val) >> cntBits << 3)))
+ 	}
+-	if GOARCH == "sparc64" && GOOS == "linux" {
+-		return (*lfnode)(unsafe.Pointer(uintptr(int64(val) >> sparcLinuxCntBits << 3)))
++	if GOARCH == "sparc64" {
++		if GOOS == "linux" {
++			return (*lfnode)(unsafe.Pointer(uintptr(int64(val) >> sparcLinuxCntBits << 3)))
++		}
++		if GOOS == "solaris" {
++			return (*lfnode)(unsafe.Pointer(uintptr(val >> sparcSolarisCntBits << 3)))
++		}
+ 	}
+ 	if GOARCH == "ia64" {
+ 		return (*lfnode)(unsafe.Pointer(uintptr(((val & (1<<(64-3) - 1)) >> ia64CntBits << 3) | val&^(1<<(64-3)-1))))
